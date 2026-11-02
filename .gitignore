@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+
+# Local n8n and runtime data
+.n8n/
+node_modules/
+*.sqlite
+*.sqlite-journal
+
+# Local QR/session artifacts
+*.png
+*.jpg
+*.jpeg

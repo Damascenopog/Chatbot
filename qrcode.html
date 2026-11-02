@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Conectar WhatsApp - CineApp</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 440px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin: 0 0 0.5rem 0;
+            color: #38bdf8;
+        }
+        .subtitle {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 1.5rem;
+            background: #0f172a;
+            padding: 4px;
+            border-radius: 8px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            font-weight: 600;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: #2563eb;
+            color: white;
+        }
+        .qr-wrapper {
+            background: white;
+            padding: 12px;
+            border-radius: 12px;
+            display: inline-block;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+        #qr-image {
+            width: 250px;
+            height: 250px;
+            display: block;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+            background: #334155;
+            color: #e2e8f0;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #eab308;
+            display: inline-block;
+        }
+        .dot.connected { background: #22c55e; }
+        .instructions {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: left;
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            line-height: 1.6;
+            margin-top: 1rem;
+        }
+        .instructions ol {
+            margin: 0;
+            padding-left: 1.2rem;
+        }
+        .instructions li {
+            margin-bottom: 4px;
+        }
+        .pairing-box {
+            display: none;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #38bdf8;
+        }
+        .btn-action {
+            width: 100%;
+            padding: 12px;
+            background: #22c55e;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-action:hover { background: #16a34a; }
+        .pairing-code-display {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: 4px;
+            color: #38bdf8;
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 2px dashed #0284c7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Conectar WhatsApp</h1>
+        <div class="subtitle">Instância: <b>chatbot-filmes</b></div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('qr')">📷 QR Code (Ao Vivo)</button>
+            <button class="tab-btn" onclick="switchTab('pairing')">🔢 Código de 8 Dígitos</button>
+        </div>
+
+        <!-- ABA 1: QR CODE EM TEMPO REAL -->
+        <div id="tab-qr">
+            <div id="status-badge" class="status-badge">
+                <span id="status-dot" class="dot"></span>
+                <span id="status-text">Buscando QR Code atualizado...</span>
+            </div>
+
+            <div>
+                <div class="qr-wrapper">
+                    <img id="qr-image" src="" alt="Carregando QR Code..." />
+                </div>
+            </div>
+
+            <div class="instructions">
+                <b>Como conectar:</b>
+                <ol>
+                    <li>Abra o <b>WhatsApp</b> no celular</li>
+                    <li>Vá em <b>Aparelhos conectados</b></li>
+                    <li>Toque em <b>Conectar um aparelho</b></li>
+                    <li>Aponte a câmera para o QR Code acima</li>
+                </ol>
+                <div style="margin-top: 8px; font-size: 0.75rem; color: #94a3b8;">
+                    🔄 Este QR Code se atualiza automaticamente em tempo real para não expirar!
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 2: CÓDIGO DE PAREAMENTO (SEM CÂMERA) -->
+        <div id="tab-pairing" class="pairing-box">
+            <p style="color: #cbd5e1; font-size: 0.9rem; margin-bottom: 1rem;">
+                Se a câmera der erro, você pode conectar digitando um código no WhatsApp:
+            </p>
+
+            <input type="text" id="phone-number" placeholder="Ex: 5511999999999" value="55" />
+            <button class="btn-action" onclick="solicitarPairingCode()">Gerar Código no WhatsApp</button>
+
+            <div id="pairing-result" style="display: none;">
+                <p style="margin-top: 15px; color: #94a3b8; font-size: 0.85rem;">Digite este código no seu WhatsApp:</p>
+                <div id="pairing-code" class="pairing-code-display">--------</div>
+                <div class="instructions">
+                    <b>No celular:</b><br>
+                    1. <b>Aparelhos conectados</b> > <b>Conectar um aparelho</b><br>
+                    2. Toque em <b>"Conectar com número de telefone"</b> na parte inferior<br>
+                    3. Digite o código de 8 dígitos mostrado acima.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8080';
+        const API_KEY = 'REPLACE_WITH_EVOLUTION_API_KEY';
+        const INSTANCE = 'chatbot-filmes';
+        let timer = null;
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            if (tab === 'qr') {
+                event.target.classList.add('active');
+                document.getElementById('tab-qr').style.display = 'block';
+                document.getElementById('tab-pairing').style.display = 'none';
+                startPolling();
+            } else {
+                event.target.classList.add('active');
+                document.getElementById('tab-qr').style.display = 'none';
+                document.getElementById('tab-pairing').style.display = 'block';
+                clearInterval(timer);
+            }
+        }
+
+        async function updateQr() {
+            try {
+                // Verificar status de conexão primeiro
+                const stRes = await fetch(`${API_URL}/instance/connectionState/${INSTANCE}`, {
+                    headers: { 'apikey': API_KEY }
+                });
+                if (stRes.ok) {
+                    const stData = await stRes.json();
+                    if (stData.instance?.state === 'open') {
+                        document.getElementById('status-dot').className = 'dot connected';
+                        document.getElementById('status-text').innerText = '✅ WhatsApp Conectado com sucesso!';
+                        document.getElementById('qr-image').style.opacity = '0.3';
+                        clearInterval(timer);
+                        return;
+                    }
+                }
+
+                // Buscar QR Code atual
+                const res = await fetch(`${API_URL}/instance/connect/${INSTANCE}`, {
+                    headers: { 'apikey': API_KEY }
+                });
+                const data = await res.json();
+                
+                const base64 = data.base64 || (data.qrcode && data.qrcode.base64);
+                if (base64) {
+                    document.getElementById('qr-image').src = base64;
+                    document.getElementById('status-dot').className = 'dot';
+                    document.getElementById('status-dot').style.background = '#22c55e';
+                    document.getElementById('status-text').innerText = '🟢 QR Code ativo e pronto para escanear';
+                }
+            } catch (err) {
+                document.getElementById('status-dot').style.background = '#ef4444';
+                document.getElementById('status-text').innerText = 'Erro ao atualizar: ' + err.message;
+            }
+        }
+
+        async function solicitarPairingCode() {
+            const num = document.getElementById('phone-number').value.replace(/\\D/g, '');
+            if (num.length < 10) {
+                alert('Por favor, informe o número completo com DDI e DDD (Ex: 5511999999999)');
+                return;
+            }
+
+            const btn = document.querySelector('.btn-action');
+            btn.innerText = 'Gerando código...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_URL}/instance/connect/${INSTANCE}?number=${num}`, {
+                    headers: { 'apikey': API_KEY }
+                });
+                const data = await res.json();
+                
+                const code = data.pairingCode || (data.qrcode && data.qrcode.pairingCode);
+                if (code) {
+                    document.getElementById('pairing-code').innerText = code;
+                    document.getElementById('pairing-result').style.display = 'block';
+                } else {
+                    alert('Não foi possível obter o código. Verifique se o número está correto.');
+                }
+            } catch (err) {
+                alert('Erro na solicitação: ' + err.message);
+            } finally {
+                btn.innerText = 'Gerar Código no WhatsApp';
+                btn.disabled = false;
+            }
+        }
+
+        function startPolling() {
+            updateQr();
+            if (timer) clearInterval(timer);
+            timer = setInterval(updateQr, 4000); // atualiza a cada 4 segundos
+        }
+
+        startPolling();
+    </script>
+</body>
+</html>

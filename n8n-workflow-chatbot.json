@@ -1,0 +1,373 @@
+{
+  "id": "j6a6uBIqv9S8InNp",
+  "name": "Chatbot WhatsApp - Venda App de Filmes",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "responseMode": "onReceived",
+        "responseCode": 200,
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "whatsapp-webhook",
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst data = item.body?.data || item.data || {};\nconst key = data.key || {};\nconst remoteJid = key.remoteJid || '';\nconst rawMsg = data.message?.conversation \n  || data.message?.extendedTextMessage?.text \n  || '';\nconst cleanMsg = rawMsg.trim().toLowerCase();\nconst staticData = $getWorkflowStaticData('global');\nconst attendedContacts = staticData.attendedContacts || {};\n\nif (!remoteJid) {\n  return [];\n}\n\n// Permitir que o cliente ou o atendente finalize o atendimento.\nif (cleanMsg === 'finalizar') {\n  delete attendedContacts[remoteJid];\n  staticData.attendedContacts = attendedContacts;\n  return [{ json: { telefone: remoteJid, nomeCliente: data.pushName || 'Cliente', mensagemRecebida: rawMsg, routeIndex: 5 } }];\n}\n\n// Não interferir enquanto o atendimento humano estiver ativo.\nif (attendedContacts[remoteJid]) {\n  return [];\n}\n\n// Ignorar mensagens enviadas pelo próprio bot ou pelo atendente.\nif (key.fromMe === true) {\n  return [];\n}\n\n// Ignorar grupos e status de stories.\nif (remoteJid.includes('@g.us') || remoteJid.includes('status@broadcast')) {\n  return [];\n}\n\nlet routeIndex = 4; // 4 = Menu Principal por padrão\n\nif (cleanMsg === '1' || cleanMsg.includes('plano') || cleanMsg.includes('preço') || cleanMsg.includes('preco')) {\n  routeIndex = 0;\n} else if (cleanMsg === '3' || cleanMsg.includes('suporte') || cleanMsg.includes('ajuda') || cleanMsg.includes('defeito') || cleanMsg.includes('instala')) {\n  routeIndex = 1;\n} else if (cleanMsg === '2' || cleanMsg.includes('teste') || cleanMsg.includes('gratis') || cleanMsg.includes('grátis')) {\n  routeIndex = 2;\n} else if (cleanMsg === '4' || cleanMsg.includes('atendente') || cleanMsg.includes('humano') || cleanMsg.includes('falar')) {\n  routeIndex = 3;\n}\n\nif (routeIndex === 3) {\n  attendedContacts[remoteJid] = true;\n  staticData.attendedContacts = attendedContacts;\n}\n\nreturn [{\n  json: {\n    telefone: remoteJid,\n    nomeCliente: data.pushName || 'Cliente',\n    mensagemRecebida: rawMsg,\n    routeIndex: routeIndex\n  }\n}];"
+      },
+      "id": "code-filter-process",
+      "name": "Filtrar e Processar Mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "output": "={{ $json.routeIndex }}",
+        "numberOutputs": 6
+      },
+      "id": "roteador",
+      "name": "Roteador de Opções",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/chatbot-filmes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "🎬 IMPORPLAY | Filmes, Séries e Esportes na sua TV!\n\nEscolha o plano ideal para você:\n\n⚡ 1. Plano Diário (24h) — R$ 2,00\n• 1 Tela simultânea\n• Catálogo completo em 4K\n\n🗓️ 2. Plano 14 Dias — R$ 15,00\n• 1 Tela simultânea\n• Catálogo completo em 4K\n\n👤 3. Plano Solteiro (Mensal) — R$ 25,00\n• 1 Tela simultânea\n• Catálogo completo em 4K\n\n👨‍👩‍👧‍👦 4. Plano Família (Mensal) — R$ 30,00 \n• 5 Telas simultâneas\n• Catálogo completo em 4K\n\n💳 Formas de pagamento: PIX, Cartão e Boleto.\n\n📲 Para assinar ou tirar dúvidas, digite 4 para falar com um atendente ou digite MENU para voltar."
+            }
+          ]
+        }
+      },
+      "id": "resposta-planos",
+      "name": "Enviar Planos e Preços",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/chatbot-filmes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ `🔧 *SUPORTE TÉCNICO - IMPORPLAY*\\n\\nPara resolvermos seu problema rapidamente, tente as seguintes etapas:\\n\\n1️⃣ *App não abre:* Desinstale e reinstale o aplicativo no seu aparelho.\\n2️⃣ *Tela preta ou travamento:* Reinicie a TV e o roteador de internet (desligue da tomada por 30 segundos).\\n3️⃣ *Erro de login:* Verifique se digitou o usuário e a senha exatamente como informados pelo atendente.\\n\\n📺 *Dispositivos compatíveis:* Smart TVs (Samsung, LG, Android TV), Fire TV Stick, Roku, Chromecast e TV Box.\\n\\n💬 Precisa de suporte personalizado? Digite *4* para falar com nosso atendente ou *MENU* para voltar.` }}"
+            }
+          ]
+        }
+      },
+      "id": "resposta-suporte",
+      "name": "Enviar Info Suporte",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/chatbot-filmes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ `🎬 *TESTE GRÁTIS - IMPORPLAY*\\n\\nÓtima escolha, *${$json.nomeCliente}*! 🎉\\n\\nSeu teste grátis de *30 minutos* é gerado diretamente por um de nossos atendentes. Digite *4* para falar com a equipe e receber seu login agora mesmo!\\n\\n💡 *Quer testar com mais calma?* Por apenas *R$ 2,00*, você garante o *Plano Diário (24h)* e assiste a tudo por um dia inteiro sem pressa.\\n\\nDigite *4* para solicitar seu acesso com o atendente ou *MENU* para voltar.` }}"
+            }
+          ]
+        }
+      },
+      "id": "resposta-teste",
+      "name": "Enviar Info Teste Grátis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/chatbot-filmes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "👨‍💻 *ATENDIMENTO HUMANO - IMPORPLAY*\n\nRecebido! Estou transferindo você para a nossa equipe de atendimento. 🙂\n\n⏰ *Horário de Atendimento:*\n• Segunda a Sexta: 08h às 20h\n• Sábados: 09h às 15h\n\nEnquanto nosso atendente se conecta, pode ir digitando sua dúvida ou o que precisa para agilizarmos seu atendimento! ✍️"
+            }
+          ]
+        }
+      },
+      "id": "resposta-atendente",
+      "name": "Encaminhar para Atendente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/chatbot-filmes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ `Olá, *${$json.nomeCliente}*! 👋\\n\\nBem-vindo ao *IMPORPLAY* 📺🎬\\nO melhor app de filmes, séries e esportes para a sua TV!\\n\\nComo posso te ajudar hoje?\\nDigite o número da opção desejada:\\n\\n1️⃣ *Planos e Preços*\\n2️⃣ *Teste Grátis*\\n3️⃣ *Suporte Técnico*\\n4️⃣ *Falar com Atendente*\\n\\n✍️ *Responda com 1, 2, 3 ou 4*` }}"
+            }
+          ]
+        }
+      },
+      "id": "menu-principal",
+      "name": "Enviar Menu Principal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/chatbot-filmes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "Conversa finalizada com sucesso. Obrigado pela prefer?ncia! ??"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "finalizar-atendimento",
+      "name": "Confirmar Finalizacao",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        880
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Filtrar e Processar Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar e Processar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Roteador de Opções",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roteador de Opções": {
+      "main": [
+        [
+          {
+            "node": "Enviar Planos e Preços",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Info Suporte",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Info Teste Grátis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Encaminhar para Atendente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Menu Principal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Confirmar Finalizacao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
