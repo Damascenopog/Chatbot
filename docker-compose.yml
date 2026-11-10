@@ -79,6 +79,10 @@ services:
       - N8N_HOST=${N8N_HOST:-localhost}
       - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - MENU_BANNER_URL=${MENU_BANNER_URL}
+      - WHATSAPP_ATENDENTE=${WHATSAPP_ATENDENTE}
       - GENERIC_TIMEZONE=America/Sao_Paulo
     volumes:
       - n8n_data:/home/node/.n8n

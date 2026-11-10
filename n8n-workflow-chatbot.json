@@ -23,7 +23,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst data = item.body?.data || item.data || {};\nconst key = data.key || {};\nconst remoteJid = key.remoteJid || '';\nconst rawMsg = data.message?.conversation \n  || data.message?.extendedTextMessage?.text \n  || '';\nconst cleanMsg = rawMsg.trim().toLowerCase();\nconst staticData = $getWorkflowStaticData('global');\nconst attendedContacts = staticData.attendedContacts || {};\n\nif (!remoteJid) {\n  return [];\n}\n\n// Permitir que o cliente ou o atendente finalize o atendimento.\nif (cleanMsg === 'finalizar') {\n  delete attendedContacts[remoteJid];\n  staticData.attendedContacts = attendedContacts;\n  return [{ json: { telefone: remoteJid, nomeCliente: data.pushName || 'Cliente', mensagemRecebida: rawMsg, routeIndex: 5 } }];\n}\n\n// Não interferir enquanto o atendimento humano estiver ativo.\nif (attendedContacts[remoteJid]) {\n  return [];\n}\n\n// Ignorar mensagens enviadas pelo próprio bot ou pelo atendente.\nif (key.fromMe === true) {\n  return [];\n}\n\n// Ignorar grupos e status de stories.\nif (remoteJid.includes('@g.us') || remoteJid.includes('status@broadcast')) {\n  return [];\n}\n\nlet routeIndex = 4; // 4 = Menu Principal por padrão\n\nif (cleanMsg === '1' || cleanMsg.includes('plano') || cleanMsg.includes('preço') || cleanMsg.includes('preco')) {\n  routeIndex = 0;\n} else if (cleanMsg === '3' || cleanMsg.includes('suporte') || cleanMsg.includes('ajuda') || cleanMsg.includes('defeito') || cleanMsg.includes('instala')) {\n  routeIndex = 1;\n} else if (cleanMsg === '2' || cleanMsg.includes('teste') || cleanMsg.includes('gratis') || cleanMsg.includes('grátis')) {\n  routeIndex = 2;\n} else if (cleanMsg === '4' || cleanMsg.includes('atendente') || cleanMsg.includes('humano') || cleanMsg.includes('falar')) {\n  routeIndex = 3;\n}\n\nif (routeIndex === 3) {\n  attendedContacts[remoteJid] = true;\n  staticData.attendedContacts = attendedContacts;\n}\n\nreturn [{\n  json: {\n    telefone: remoteJid,\n    nomeCliente: data.pushName || 'Cliente',\n    mensagemRecebida: rawMsg,\n    routeIndex: routeIndex\n  }\n}];"
+        "jsCode": "const item = $input.first().json;\nconst data = item.body?.data || item.data || {};\nconst key = data.key || {};\nconst remoteJid = key.remoteJid || '';\nconst telefone = remoteJid.replace(/@.*$/, '');\nconst rawMsg = data.message?.conversation \n  || data.message?.extendedTextMessage?.text \n  || '';\nconst cleanMsg = rawMsg.trim().toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\nconst staticData = $getWorkflowStaticData('global');\nconst attendedContacts = staticData.attendedContacts || {};\nconst menuBannerSent = staticData.menuBannerSent || {};\nconst purchaseStates = staticData.purchaseStates || {};\n\nif (!remoteJid) { return []; }\n\nif (cleanMsg === 'finalizar') {\n  delete attendedContacts[remoteJid];\n  delete menuBannerSent[telefone];\n  delete purchaseStates[remoteJid];\n  staticData.attendedContacts = attendedContacts;\n  staticData.menuBannerSent = menuBannerSent;\n  staticData.purchaseStates = purchaseStates;\n  return [{ json: { telefone, nomeCliente: data.pushName || 'Cliente', mensagemRecebida: rawMsg, routeIndex: 5 } }];\n}\n\nif (attendedContacts[remoteJid] || key.fromMe === true) { return []; }\nif (remoteJid.includes('@g.us') || remoteJid.includes('status@broadcast')) { return []; }\n\nif (cleanMsg === 'menu') {\n  delete purchaseStates[remoteJid];\n  staticData.purchaseStates = purchaseStates;\n}\n\nconst currentPurchase = purchaseStates[remoteJid];\nlet routeIndex = 6;\nlet planoSelecionado = '';\nlet formaPagamento = '';\n\nif (currentPurchase?.stage === 'awaiting_plan') {\n  const plans = { '1': 'Plano Diário (24h) - R$ 2,00', '2': 'Plano 14 Dias - R$ 15,00', '3': 'Plano Solteiro (Mensal) - R$ 25,00', '4': 'Plano Família (Mensal) - R$ 30,00' };\n  planoSelecionado = plans[cleanMsg] || \"\";\n  if (planoSelecionado) {\n    purchaseStates[remoteJid] = { stage: 'awaiting_payment', plan: planoSelecionado };\n    staticData.purchaseStates = purchaseStates;\n    routeIndex = 7;\n  } else { routeIndex = 10; }\n} else if (currentPurchase?.stage === 'awaiting_payment') {\n  const payments = { '1': 'PIX', 'pix': 'PIX', '2': 'Cartão', 'cartao': 'Cartão', '3': 'Boleto', 'boleto': 'Boleto' };\n  formaPagamento = payments[cleanMsg] || \"\";\n  if (formaPagamento) {\n    planoSelecionado = currentPurchase.plan;\n    delete purchaseStates[remoteJid];\n    attendedContacts[remoteJid] = true;\n    staticData.purchaseStates = purchaseStates;\n    staticData.attendedContacts = attendedContacts;\n    routeIndex = 8;\n  } else { routeIndex = 9; }\n} else if (cleanMsg === '1' || cleanMsg.includes('plano') || cleanMsg.includes('preco')) {\n  purchaseStates[remoteJid] = { stage: 'awaiting_plan' };\n  staticData.purchaseStates = purchaseStates;\n  routeIndex = 0;\n} else if (cleanMsg === '3' || cleanMsg.includes('suporte') || cleanMsg.includes('ajuda') || cleanMsg.includes('defeito') || cleanMsg.includes('instala')) {\n  routeIndex = 1;\n} else if (cleanMsg === '2' || cleanMsg.includes('teste') || cleanMsg.includes('gratis')) {\n  routeIndex = 2;\n} else if (cleanMsg === '5' || cleanMsg.includes('atendente') || cleanMsg.includes('humano') || cleanMsg.includes('falar')) {\n  routeIndex = 3;\n}\n\nif (routeIndex === 6 && !menuBannerSent[telefone]) {\n  menuBannerSent[telefone] = true;\n  staticData.menuBannerSent = menuBannerSent;\n  routeIndex = 4;\n}\n\nreturn [{\n  json: {\n    telefone,\n    nomeCliente: data.pushName || 'Cliente',\n    mensagemRecebida: rawMsg,\n    routeIndex: routeIndex,\n    planoSelecionado: planoSelecionado,\n    formaPagamento: formaPagamento\n  }\n}];"
       },
       "id": "code-filter-process",
       "name": "Filtrar e Processar Mensagem",
@@ -38,7 +38,7 @@
       "parameters": {
         "mode": "expression",
         "output": "={{ $json.routeIndex }}",
-        "numberOutputs": 6
+        "numberOutputs": 11
       },
       "id": "roteador",
       "name": "Roteador de Opções",
@@ -76,7 +76,7 @@
             },
             {
               "name": "text",
-              "value": "🎬 IMPORPLAY | Filmes, Séries e Esportes na sua TV!\n\nEscolha o plano ideal para você:\n\n⚡ 1. Plano Diário (24h) — R$ 2,00\n• 1 Tela simultânea\n• Catálogo completo em 4K\n\n🗓️ 2. Plano 14 Dias — R$ 15,00\n• 1 Tela simultânea\n• Catálogo completo em 4K\n\n👤 3. Plano Solteiro (Mensal) — R$ 25,00\n• 1 Tela simultânea\n• Catálogo completo em 4K\n\n👨‍👩‍👧‍👦 4. Plano Família (Mensal) — R$ 30,00 \n• 5 Telas simultâneas\n• Catálogo completo em 4K\n\n💳 Formas de pagamento: PIX, Cartão e Boleto.\n\n📲 Para assinar ou tirar dúvidas, digite 4 para falar com um atendente ou digite MENU para voltar."
+              "value": "🎬 *PLANOS E PREÇOS - IMPORPLAY*\n\nEscolha o plano ideal para você digitando apenas o número correspondente:\n\n1️⃣ *Plano Diário* (24h) — R$ 2,00\n2️⃣ *Plano 14 Dias* — R$ 15,00\n3️⃣ *Plano Solteiro* (Mensal) — R$ 25,00\n4️⃣ *Plano Família* (Mensal) — R$ 30,00\n\nDigite *MENU* para voltar."
             }
           ]
         }
@@ -117,7 +117,7 @@
             },
             {
               "name": "text",
-              "value": "={{ `🔧 *SUPORTE TÉCNICO - IMPORPLAY*\\n\\nPara resolvermos seu problema rapidamente, tente as seguintes etapas:\\n\\n1️⃣ *App não abre:* Desinstale e reinstale o aplicativo no seu aparelho.\\n2️⃣ *Tela preta ou travamento:* Reinicie a TV e o roteador de internet (desligue da tomada por 30 segundos).\\n3️⃣ *Erro de login:* Verifique se digitou o usuário e a senha exatamente como informados pelo atendente.\\n\\n📺 *Dispositivos compatíveis:* Smart TVs (Samsung, LG, Android TV), Fire TV Stick, Roku, Chromecast e TV Box.\\n\\n💬 Precisa de suporte personalizado? Digite *4* para falar com nosso atendente ou *MENU* para voltar.` }}"
+              "value": "={{ `🔧 *SUPORTE TÉCNICO - IMPORPLAY*\n\nPara resolvermos seu problema rapidamente, tente as seguintes etapas:\n\n1️⃣ *App não abre:* Desinstale e reinstale o aplicativo no seu aparelho.\n2️⃣ *Tela preta ou travamento:* Reinicie a TV e o roteador de internet (desligue da tomada por 30 segundos).\n3️⃣ *Erro de login:* Verifique se digitou o usuário e a senha exatamente como informados pelo atendente.\n\n📺 *Dispositivos compatíveis:* Smart TVs (Samsung, LG, Android TV), Fire TV Stick, Roku, Chromecast e TV Box.\n\n💬 Precisa de suporte personalizado? Digite *5* para falar com nosso atendente ou *MENU* para voltar.` }}"
             }
           ]
         }
@@ -158,7 +158,7 @@
             },
             {
               "name": "text",
-              "value": "={{ `🎬 *TESTE GRÁTIS - IMPORPLAY*\\n\\nÓtima escolha, *${$json.nomeCliente}*! 🎉\\n\\nSeu teste grátis de *30 minutos* é gerado diretamente por um de nossos atendentes. Digite *4* para falar com a equipe e receber seu login agora mesmo!\\n\\n💡 *Quer testar com mais calma?* Por apenas *R$ 2,00*, você garante o *Plano Diário (24h)* e assiste a tudo por um dia inteiro sem pressa.\\n\\nDigite *4* para solicitar seu acesso com o atendente ou *MENU* para voltar.` }}"
+              "value": "={{ `🎬 *TESTE GRÁTIS - IMPORPLAY*\n\nÓtima escolha, *${$json.nomeCliente}*! 🎉\n\nSeu teste grátis de *30 minutos* é gerado diretamente por um de nossos atendentes. Digite *5* para falar com a equipe e receber seu login agora mesmo!\n\n💡 *Quer testar com mais calma?* Por apenas *R$ 2,00*, você garante o *Plano Diário (24h)* e assiste a tudo por um dia inteiro sem pressa.\n\nDigite *5* para solicitar seu acesso com o atendente ou *MENU* para voltar.` }}"
             }
           ]
         }
@@ -236,11 +236,11 @@
           "parameters": [
             {
               "name": "number",
-              "value": "={{ $json.telefone }}"
+              "value": "={{ $('Filtrar e Processar Mensagem').item.json.telefone }}"
             },
             {
               "name": "text",
-              "value": "={{ `Olá, *${$json.nomeCliente}*! 👋\\n\\nBem-vindo ao *IMPORPLAY* 📺🎬\\nO melhor app de filmes, séries e esportes para a sua TV!\\n\\nComo posso te ajudar hoje?\\nDigite o número da opção desejada:\\n\\n1️⃣ *Planos e Preços*\\n2️⃣ *Teste Grátis*\\n3️⃣ *Suporte Técnico*\\n4️⃣ *Falar com Atendente*\\n\\n✍️ *Responda com 1, 2, 3 ou 4*` }}"
+              "value": "={{ `Olá, *${$('Filtrar e Processar Mensagem').item.json.nomeCliente}*! 👋\n\nBem-vindo ao *IMPORPLAY* 📺🎬\nO melhor app de filmes, séries e esportes para a sua TV!\n\nDigite o número da opção desejada:\n\n1️⃣ *Planos e Preços*\n2️⃣ *Teste Grátis*\n3️⃣ *Suporte Técnico*\n5️⃣ *Falar com Atendente*\n\n✍️ *Responda com 1, 2, 3 ou 5*` }}"
             }
           ]
         }
@@ -281,7 +281,7 @@
             },
             {
               "name": "text",
-              "value": "Conversa finalizada com sucesso. Obrigado pela prefer?ncia! ??"
+              "value": "Conversa finalizada com sucesso. Obrigado pela preferencia!🙏"
             }
           ]
         },
@@ -335,11 +335,11 @@
             },
             {
               "name": "media",
-              "value": "https://raw.githubusercontent.com/Damascenopog/Chatbot/main/assets/imporplay-banner.jpeg"
+              "value": "={{ $env.MENU_BANNER_URL }}"
             },
             {
               "name": "fileName",
-              "value": "imporplay-banner.jpeg"
+              "value": "imporplay-banner.jpg"
             }
           ]
         },
@@ -352,6 +352,132 @@
       "position": [
         1000,
         650
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/chatbot-filmes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ `💳 *FORMA DE PAGAMENTO*\n\nVocê escolheu: *${$json.planoSelecionado}*\n\nDigite o número da forma de pagamento:\n\n1️⃣ PIX\n2️⃣ Cartão\n3️⃣ Boleto` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "resposta-pagamento",
+      "name": "Solicitar Forma de Pagamento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        1020
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/chatbot-filmes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $env.WHATSAPP_ATENDENTE }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ `🛒 *NOVO PEDIDO - IMPORPLAY*\n\n👤 Cliente: *${$('Filtrar e Processar Mensagem').item.json.nomeCliente}*\n📱 WhatsApp: ${$('Filtrar e Processar Mensagem').item.json.telefone}\n📦 Plano: *${$('Filtrar e Processar Mensagem').item.json.planoSelecionado}*\n💳 Pagamento: *${$('Filtrar e Processar Mensagem').item.json.formaPagamento}*\n\nCliente aguardando atendimento para concluir a compra.` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "pedido-atendente",
+      "name": "Enviar Pedido ao Atendente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        1020
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://evolution-api:8080/message/sendText/chatbot-filmes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Filtrar e Processar Mensagem').item.json.telefone }}"
+            },
+            {
+              "name": "text",
+              "value": "Pedido recebido! ✅\n\nSeus dados foram encaminhados ao atendente. Aguarde o contato para concluir sua compra.\n\nDigite *finalizar* quando o atendimento terminar."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "confirmar-pedido",
+      "name": "Confirmar Pedido ao Cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        1020
       ]
     }
   ],
@@ -421,6 +547,41 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Enviar Menu Principal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Solicitar Forma de Pagamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Pedido ao Atendente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Solicitar Forma de Pagamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Planos e Preços",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -429,6 +590,17 @@
         [
           {
             "node": "Enviar Menu Principal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Pedido ao Atendente": {
+      "main": [
+        [
+          {
+            "node": "Confirmar Pedido ao Cliente",
             "type": "main",
             "index": 0
           }
