@@ -3,6 +3,8 @@ volumes:
   redis_data:
   evolution_data:
   n8n_data:
+  chatwoot_data:
+  chatwoot_postgres_data:
 
 networks:
   chatbot-net:
@@ -59,6 +61,9 @@ services:
       - CACHE_REDIS_SAVE_INSTANCES=true
       - WEBHOOK_GLOBAL_ENABLED=false
       - DEL_INSTANCE=false
+      - CHATWOOT_ENABLED=true
+      - CHATWOOT_MESSAGE_READ=true
+      - CHATWOOT_MESSAGE_DELETE=true
     volumes:
       - evolution_data:/evolution/instances
     networks:
@@ -90,3 +95,89 @@ services:
       - chatbot-net
     depends_on:
       - evolution-api
+
+  chatwoot-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: chatwoot-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: chatwoot_production
+      POSTGRES_USER: chatwoot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - chatwoot_postgres_data:/var/lib/postgresql/data
+    networks:
+      - chatbot-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatwoot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  chatwoot-web:
+    image: chatwoot/chatwoot:latest
+    container_name: chatwoot-web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - FRONTEND_URL=${CHATWOOT_FRONTEND_URL:-http://localhost:3000}
+      - SECRET_KEY_BASE=${CHATWOOT_SECRET_KEY_BASE}
+      - DEFAULT_LOCALE=pt_BR
+      - FORCE_SSL=false
+      - ENABLE_ACCOUNT_SIGNUP=${CHATWOOT_ENABLE_ACCOUNT_SIGNUP:-true}
+      - RAILS_ENV=production
+      - NODE_ENV=production
+      - INSTALLATION_ENV=docker
+      - ACTIVE_STORAGE_SERVICE=local
+      - POSTGRES_HOST=chatwoot-postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DATABASE=chatwoot_production
+      - POSTGRES_USERNAME=chatwoot
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_URL=redis://chatbot-redis:6379/1
+      - MAILER_SENDER_EMAIL=Chatwoot <noreply@imporplay.local>
+      - RAILS_LOG_TO_STDOUT=true
+      - SAFE_FETCH_ALLOW_PRIVATE_NETWORK=true
+    entrypoint: docker/entrypoints/rails.sh
+    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+    volumes:
+      - chatwoot_data:/app/storage
+    networks:
+      - chatbot-net
+    depends_on:
+      chatwoot-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  chatwoot-worker:
+    image: chatwoot/chatwoot:latest
+    container_name: chatwoot-worker
+    restart: always
+    environment:
+      - FRONTEND_URL=${CHATWOOT_FRONTEND_URL:-http://localhost:3000}
+      - SECRET_KEY_BASE=${CHATWOOT_SECRET_KEY_BASE}
+      - DEFAULT_LOCALE=pt_BR
+      - FORCE_SSL=false
+      - ENABLE_ACCOUNT_SIGNUP=${CHATWOOT_ENABLE_ACCOUNT_SIGNUP:-true}
+      - RAILS_ENV=production
+      - NODE_ENV=production
+      - INSTALLATION_ENV=docker
+      - ACTIVE_STORAGE_SERVICE=local
+      - POSTGRES_HOST=chatwoot-postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DATABASE=chatwoot_production
+      - POSTGRES_USERNAME=chatwoot
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_URL=redis://chatbot-redis:6379/1
+      - MAILER_SENDER_EMAIL=Chatwoot <noreply@imporplay.local>
+      - RAILS_LOG_TO_STDOUT=true
+      - SAFE_FETCH_ALLOW_PRIVATE_NETWORK=true
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    volumes:
+      - chatwoot_data:/app/storage
+    networks:
+      - chatbot-net
+    depends_on:
+      - chatwoot-web

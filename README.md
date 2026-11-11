@@ -20,6 +20,7 @@ O fluxo oferece:
 - Uma porta livre para:
   - Evolution API: `8080`
   - n8n: `5678`
+  - Chatwoot: `3000`
 
 ## 1. Clonar o projeto
 
@@ -164,6 +165,22 @@ Teste a API e a autenticação:
 
 Envie uma mensagem para o WhatsApp conectado. O bot deve exibir o menu e responder às opções `1`, `2`, `3` e `4`.
 
+## 6. Configurar Atendimento no Chatwoot (Opcional / Recomendado)
+
+O Chatwoot permite que múltiplos atendentes humanos conversem com os clientes pelo mesmo WhatsApp em tempo real:
+
+1. Acesse o painel do Chatwoot no navegador: <http://localhost:3000>
+2. Preencha seus dados para criar a conta de Administrador.
+3. No menu lateral inferior esquerdo, clique no seu perfil > **Configurações do Perfil**.
+4. Role até o final da página e copie o seu **Token de Acesso**.
+5. Conecte o WhatsApp ao Chatwoot executando no PowerShell:
+
+```powershell
+.\conectar-chatwoot.ps1 -ChatwootToken "seu_token_aqui"
+```
+
+A Evolution API criará automaticamente a caixa de entrada no Chatwoot e sincronizará as mensagens.
+
 ## Atendimento humano
 
 Quando o cliente escolher `4`, o bot registra o contato em atendimento humano e deixa de responder às mensagens desse contato.
@@ -213,6 +230,8 @@ Use o último comando somente se quiser recriar o banco, a sessão do WhatsApp e
 | `n8n-workflow-chatbot.json` | Workflow importável no n8n |
 | `.env.example` | Modelo das variáveis de ambiente |
 | `setup-evolution.ps1` | Cria/configura a instância e o webhook |
+| `setup-chatwoot.ps1` | Inicia os serviços do Chatwoot |
+| `conectar-chatwoot.ps1` | Conecta a instância do WhatsApp ao Chatwoot |
 | `gerar-qrcode.ps1` | Auxilia na conexão do WhatsApp |
 | `test-webhook.ps1` | Envia um payload de teste ao n8n |
 
